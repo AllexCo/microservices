@@ -29,20 +29,23 @@ class CustomerController
         $this->customerRepository = $customerRepository;
     }
 
-
+    // RabbitMq notification
     public function rabbitmqNotification($param1, $param2){
-        // RabbitMq notification
-        $connection = new AMQPStreamConnection('172.19.0.2', 5672, 'rabbitmq', 'rabbitmq');
+        $ip = $_SERVER['RABBITMQ_IP'];
+        $port = $_SERVER['RABBITMQ_PORT'];
+        $user = $_SERVER['RABBITMQ_USER'];
+        $pass = $_SERVER['RABBITMQ_PASS'];
+
+        $connection = new AMQPStreamConnection($ip, $port, $user, $pass);
         $channel = $connection->channel();
 
-        $payload = json_encode(array($id,$email));
+        $payload = json_encode(array($id, $email));
         $msg = new AMQPMessage($payload);
         $channel->basic_publish($msg, '', 'user_queue');
 
         $channel->close();
         $connection->close();
     }
-
 
     /**
      * @Route("/add", name="add_customer", methods={"POST"})
@@ -81,7 +84,6 @@ class CustomerController
             'phoneNumber' => $customer->getPhoneNumber(),
         ];
 
-
         return new JsonResponse(['customer' => $data], Response::HTTP_OK);
     }
 
@@ -103,7 +105,6 @@ class CustomerController
                 'phoneNumber' => $customer->getPhoneNumber(),
             ];
         }
-
         return new JsonResponse(['customers' => $data], Response::HTTP_OK);
     }
 
@@ -138,28 +139,24 @@ class CustomerController
      */
     public function consumer(): JsonResponse
     {
-      $connection = new AMQPStreamConnection('172.19.0.2', 5672, 'rabbitmq', 'rabbitmq');
-      $channel = $connection->channel();
+        $ip = $_SERVER['RABBITMQ_IP'];
+        $port = $_SERVER['RABBITMQ_PORT'];
+        $user = $_SERVER['RABBITMQ_USER'];
+        $pass = $_SERVER['RABBITMQ_PASS'];
 
-      $channel->queue_declare('user_queue', false, true, false, false);
+        $connection = new AMQPStreamConnection($ip, $port, $user, $pass);
+        $channel = $connection->channel();
+        $channel->queue_declare('user_queue', false, true, false, false);
 
+        $callback = function ($msg) {
+            echo ' [x] Received ', $msg->body, "\n";
+        };
 
-
-      $callback = function ($msg) {
-          echo ' [x] Received ', $msg->body, "\n";
-      };
-
-      $channel->basic_consume('user_queue', '', false, true, false, false, $callback);
-
-      // while ($channel->is_consuming()) {
-      //     $channel->wait();
-      // }
-
-      $channel->close();
-      $connection->close();
-
-
-      return new JsonResponse(['Messages consumed!']);
+        $channel->basic_consume('user_queue', '', false, true, false, false, $callback);
+        $channel->close();
+        $connection->close();
+        return new JsonResponse(['Messages consumed!']);
+    }
     }
 
 
