@@ -29,6 +29,21 @@ class CustomerController
         $this->customerRepository = $customerRepository;
     }
 
+
+    public function rabbitmqNotification($param1, $param2){
+        // RabbitMq notification
+        $connection = new AMQPStreamConnection('172.19.0.2', 5672, 'rabbitmq', 'rabbitmq');
+        $channel = $connection->channel();
+
+        $payload = json_encode(array($id,$email));
+        $msg = new AMQPMessage($payload);
+        $channel->basic_publish($msg, '', 'user_queue');
+
+        $channel->close();
+        $connection->close();
+    }
+
+
     /**
      * @Route("/add", name="add_customer", methods={"POST"})
      */
@@ -47,17 +62,7 @@ class CustomerController
 
         $this->customerRepository->saveCustomer($firstName, $lastName, $email, $phoneNumber);
 
-        // RabbitMq notification
-        $connection = new AMQPStreamConnection('172.19.0.2', 5672, 'rabbitmq', 'rabbitmq');
-        $channel = $connection->channel();
-
-        $payload = json_encode(array($id,$email));
-        $msg = new AMQPMessage($payload);
-        $channel->basic_publish($msg, '', 'user_queue');
-
-        $channel->close();
-        $connection->close();
-
+        $this->rabbitmqNotification($id,$email);
 
         return new JsonResponse(['status' => 'Customer added, message to RabbitMQ sent!'], Response::HTTP_CREATED);
     }
